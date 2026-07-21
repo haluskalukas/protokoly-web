@@ -84,8 +84,8 @@
           <td class="text-muted small">{{ loop.index }}</td>
           <td><code>{{ p.number }}</code></td>
           <td>{{ p.client or '—' }}</td>
-          <td class="text-nowrap">{{ p.measurement_date_str }}</td>
-          <td class="text-nowrap">{{ p.issue_date_str }}</td>
+          <td class="text-nowrap" data-order="{{ p.measurement_date.isoformat() if p.measurement_date else '' }}">{{ p.measurement_date_str }}</td>
+          <td class="text-nowrap" data-order="{{ p.issue_date.isoformat() if p.issue_date else '' }}">{{ p.issue_date_str }}</td>
           <td>
             <span class="badge bg-primary badge-set">{{ p.auth_set or '—' }}</span>
           </td>
