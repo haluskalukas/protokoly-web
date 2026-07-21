@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ── Horní lišta: statistiky + tlačítka ── #}
+<div class="row g-3 mb-4 align-items-center">
+  <div class="col-auto">
+    <div class="card stat-card shadow-sm px-3 py-2">
+      <span class="text-muted small">Celkem protokolů</span>
+      <span class="fs-4 fw-bold text-primary">{{ total }}</span>
+    </div>
+  </div>
+  <div class="col-auto">
+    <div class="card stat-card shadow-sm px-3 py-2">
+      <span class="text-muted small">Zobrazeno</span>
+      <span class="fs-4 fw-bold">{{ protocols|length }}</span>
+    </div>
+  </div>
+  <div class="col ms-auto text-end d-flex gap-2 justify-content-end">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+      <i class="bi bi-cloud-upload me-1"></i>Přidat protokol
+    </button>
+    <a href="{{ url_for('export', rok=current_rok, set=current_set, search=current_search) }}"
+       class="btn btn-success">
+      <i class="bi bi-file-earmark-excel me-1"></i>Export do Excelu
+    </a>
+  </div>
+</div>
+
+{# ── Filtry ── #}
+<form method="get" class="card shadow-sm mb-4 p-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-2">
+      <label class="form-label small fw-semibold mb-1">Rok vydání</label>
+      <select name="rok" class="form-select form-select-sm">
+        <option value="">Všechny roky</option>
+        {% for rok in all_years %}
+          <option value="{{ rok }}" {% if rok|string == current_rok %}selected{% endif %}>{{ rok }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small fw-semibold mb-1">Autorizační set</label>
+      <select name="set" class="form-select form-select-sm">
+        <option value="">Všechny sety</option>
+        {% for s in all_sets %}
+          <option value="{{ s }}" {% if s == current_set %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small fw-semibold mb-1">Hledat (číslo / objednatel)</label>
+      <input type="text" name="search" class="form-control form-control-sm"
+             placeholder="PM-2026-… nebo jméno" value="{{ current_search }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-funnel me-1"></i>Filtrovat
+      </button>
+      <a href="/" class="btn btn-outline-secondary btn-sm ms-1">Resetovat</a>
+    </div>
+  </div>
+</form>
+
+{# ── Tabulka ── #}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    {% if protocols %}
+    <table id="protokoly-table" class="table table-hover table-bordered mb-0 w-100">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Číslo protokolu</th>
+          <th>Objednatel</th>
+          <th>Datum měření</th>
+          <th>Datum vydání</th>
+          <th>Set</th>
+          <th>Rok</th>
+          <th class="text-center">Akce</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in protocols %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td><code>{{ p.number }}</code></td>
+          <td>{{ p.client or '—' }}</td>
+          <td class="text-nowrap">{{ p.measurement_date_str }}</td>
+          <td class="text-nowrap">{{ p.issue_date_str }}</td>
+          <td>
+            <span class="badge bg-primary badge-set">{{ p.auth_set or '—' }}</span>
+          </td>
+          <td>{{ p.year or '—' }}</td>
+          <td class="text-center">
+            <button class="btn btn-outline-danger btn-sm"
+                    data-bs-toggle="modal"
+                    data-bs-target="#deleteModal"
+                    data-id="{{ p.id }}"
+                    data-number="{{ p.number }}">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+      Žádné protokoly neodpovídají filtru.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Modal: nahrát PDF ── #}
+<div class="modal fade" id="uploadModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-cloud-upload me-2"></i>Přidat protokol</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/upload" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="card card-upload p-4 text-center mb-3">
+            <i class="bi bi-file-earmark-pdf fs-1 text-danger mb-2"></i>
+            <p class="text-muted mb-2">Vyber PDF protokol od Akulab</p>
+            <input type="file" name="pdf" accept=".pdf" class="form-control" required>
+          </div>
+          <p class="text-muted small mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            Aplikace automaticky načte: číslo protokolu, objednatele, data měření a vydání, autorizační set.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-upload me-1"></i>Nahrát a zpracovat
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Modal: smazat protokol ── #}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i>Smazat protokol</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Opravdu smazat protokol <strong id="delete-number"></strong>?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Zrušit</button>
+        <form id="delete-form" method="post">
+          <button type="submit" class="btn btn-danger btn-sm">
+            <i class="bi bi-trash me-1"></i>Smazat
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // DataTables – jen řazení, filtrování řeší server
+  {% if protocols %}
+  $('#protokoly-table').DataTable({
+    paging: false,
+    info: false,
+    searching: false,
+    order: [],
+    columnDefs: [{ orderable: false, targets: [0, 7] }],
+    language: { emptyTable: 'Žádné záznamy' }
+  });
+  {% endif %}
+
+  // Delete modal – předvyplnění ID a čísla
+  document.getElementById('deleteModal').addEventListener('show.bs.modal', function(e) {
+    const btn = e.relatedTarget;
+    document.getElementById('delete-number').textContent = btn.dataset.number;
+    document.getElementById('delete-form').action = '/delete/' + btn.dataset.id;
+  });
+</script>
+{% endblock %}
