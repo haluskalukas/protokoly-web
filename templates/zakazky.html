@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ── Záhlaví ── #}
+<div class="row g-3 mb-4 align-items-center">
+  <div class="col-auto">
+    <div class="card stat-card shadow-sm px-3 py-2">
+      <span class="text-muted small">Aktivní</span>
+      <span class="fs-4 fw-bold text-primary">{{ aktivni_count }}</span>
+    </div>
+  </div>
+  <div class="col-auto">
+    <div class="card stat-card shadow-sm px-3 py-2">
+      <span class="text-muted small">Historie</span>
+      <span class="fs-4 fw-bold">{{ historie_count }}</span>
+    </div>
+  </div>
+  <div class="col ms-auto text-end">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newModal">
+      <i class="bi bi-plus-lg me-1"></i>Nová zakázka
+    </button>
+  </div>
+</div>
+
+{# ── Přepínač aktivní / historie ── #}
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if not historie %}active fw-semibold{% endif %}"
+       href="{{ url_for('zakazky') }}">
+      <i class="bi bi-list-task me-1"></i>Aktivní
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if historie %}active fw-semibold{% endif %}"
+       href="{{ url_for('zakazky', view='historie') }}">
+      <i class="bi bi-archive me-1"></i>Historie
+    </a>
+  </li>
+</ul>
+
+{# ── Filtry ── #}
+<form method="get" class="card shadow-sm mb-4 p-3">
+  <input type="hidden" name="view" value="{{ view }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small fw-semibold mb-1">Typ zakázky</label>
+      <select name="typ" class="form-select form-select-sm">
+        <option value="">Všechny typy</option>
+        {% for t in typy %}
+          <option value="{{ t }}" {% if t == current_typ %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if not historie %}
+    <div class="col-md-2">
+      <label class="form-label small fw-semibold mb-1">Stav</label>
+      <select name="stav" class="form-select form-select-sm">
+        <option value="">Všechny stavy</option>
+        {% for s in stavy %}
+          <option value="{{ s }}" {% if s == current_stav %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="col-md-3">
+      <label class="form-label small fw-semibold mb-1">Zodpovědná osoba</label>
+      <select name="osoba" class="form-select form-select-sm">
+        <option value="">Všechny osoby</option>
+        {% for o in all_osoby %}
+          <option value="{{ o }}" {% if o == current_osoba %}selected{% endif %}>{{ o }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-funnel me-1"></i>Filtrovat
+      </button>
+      <a href="{{ url_for('zakazky', view=view) }}" class="btn btn-outline-secondary btn-sm ms-1">Resetovat</a>
+    </div>
+  </div>
+</form>
+
+{# ── Tabulka ── #}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    {% if zakazky %}
+    <table id="zakazky-table" class="table table-hover table-bordered mb-0 w-100">
+      <thead>
+        <tr>
+          <th>Číslo</th>
+          <th>Typ zakázky</th>
+          <th>Zodp. osoba</th>
+          {% if not historie %}<th>Stav</th>{% endif %}
+          <th>Datum měření</th>
+          <th class="text-center">Akce</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for z in zakazky %}
+        <tr>
+          <td><code>{{ z.number }}</code></td>
+          <td>{{ z.typ or '—' }}</td>
+          <td>{{ z.zodpovedna_osoba or '—' }}</td>
+          {% if not historie %}
+          <td>
+            <span class="badge rounded-pill
+              {% if z.stav == 'založeno' %}bg-secondary
+              {% elif z.stav == 'čekám na podklady' %}bg-warning text-dark
+              {% elif z.stav == 'zpracovává se' %}bg-primary
+              {% elif z.stav == 'ke kontrole' %}bg-info text-dark
+              {% endif %}">
+              {{ z.stav }}
+            </span>
+          </td>
+          {% endif %}
+          <td class="text-nowrap" data-order="{{ z.datum_mereni.isoformat() if z.datum_mereni else '' }}">
+            {{ z.datum_mereni_str }}
+          </td>
+          <td class="text-center text-nowrap">
+            <button class="btn btn-outline-secondary btn-sm"
+                    data-bs-toggle="modal" data-bs-target="#editModal"
+                    data-id="{{ z.id }}"
+                    data-number="{{ z.number }}"
+                    data-typ="{{ z.typ or '' }}"
+                    data-osoba="{{ z.zodpovedna_osoba or '' }}"
+                    data-stav="{{ z.stav or '' }}"
+                    data-datum="{{ z.datum_mereni.isoformat() if z.datum_mereni else '' }}"
+                    title="Upravit">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <form method="post" action="/zakazky/{{ z.id }}/done" class="d-inline">
+              <button type="submit" class="btn btn-sm {% if z.dokonceno %}btn-outline-secondary{% else %}btn-outline-success{% endif %}"
+                      title="{% if z.dokonceno %}Vrátit mezi aktivní{% else %}Označit jako dokončeno{% endif %}">
+                <i class="bi {% if z.dokonceno %}bi-arrow-counterclockwise{% else %}bi-check-lg{% endif %}"></i>
+              </button>
+            </form>
+            <button class="btn btn-outline-danger btn-sm"
+                    data-bs-toggle="modal" data-bs-target="#deleteZakazkaModal"
+                    data-id="{{ z.id }}"
+                    data-number="{{ z.number }}"
+                    title="Smazat">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+      {% if historie %}Žádné dokončené zakázky.{% else %}Žádné aktivní zakázky.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Modal: nová zakázka ── #}
+<div class="modal fade" id="newModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-lg me-2"></i>Nová zakázka</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/zakazky/new">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Číslo zakázky <span class="text-danger">*</span></label>
+            <input type="text" name="number" class="form-control" placeholder="2026-001" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Typ zakázky</label>
+            <select name="typ" class="form-select">
+              <option value="">— nevybráno —</option>
+              {% for t in typy %}
+                <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Zodpovědná osoba</label>
+            <input type="text" name="zodpovedna_osoba" class="form-control" placeholder="Jméno">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Stav</label>
+            <select name="stav" class="form-select">
+              {% for s in stavy %}
+                <option value="{{ s }}" {% if s == 'založeno' %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-0">
+            <label class="form-label fw-semibold">Datum měření</label>
+            <input type="date" name="datum_mereni" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Přidat
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Modal: upravit zakázku ── #}
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Upravit zakázku <span id="edit-number"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="edit-form">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Typ zakázky</label>
+            <select name="typ" id="edit-typ" class="form-select">
+              <option value="">— nevybráno —</option>
+              {% for t in typy %}
+                <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Zodpovědná osoba</label>
+            <input type="text" name="zodpovedna_osoba" id="edit-osoba" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Stav</label>
+            <select name="stav" id="edit-stav" class="form-select">
+              {% for s in stavy %}
+                <option value="{{ s }}">{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-0">
+            <label class="form-label fw-semibold">Datum měření</label>
+            <input type="date" name="datum_mereni" id="edit-datum" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Uložit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Modal: smazat zakázku ── #}
+<div class="modal fade" id="deleteZakazkaModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i>Smazat zakázku</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Opravdu smazat zakázku <strong id="delete-zakazka-number"></strong>?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Zrušit</button>
+        <form id="delete-zakazka-form" method="post">
+          <button type="submit" class="btn btn-danger btn-sm">
+            <i class="bi bi-trash me-1"></i>Smazat
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  {% if zakazky %}
+  $('#zakazky-table').DataTable({
+    paging: false,
+    info: false,
+    searching: false,
+    order: [],
+    columnDefs: [{ orderable: false, targets: [-1] }],
+    language: { emptyTable: 'Žádné záznamy' }
+  });
+  {% endif %}
+
+  // Edit modal – předvyplnění
+  document.getElementById('editModal').addEventListener('show.bs.modal', function(e) {
+    const btn = e.relatedTarget;
+    document.getElementById('edit-number').textContent = btn.dataset.number;
+    document.getElementById('edit-form').action = '/zakazky/' + btn.dataset.id + '/edit';
+    document.getElementById('edit-typ').value   = btn.dataset.typ;
+    document.getElementById('edit-osoba').value = btn.dataset.osoba;
+    document.getElementById('edit-stav').value  = btn.dataset.stav;
+    document.getElementById('edit-datum').value = btn.dataset.datum;
+  });
+
+  // Delete modal
+  document.getElementById('deleteZakazkaModal').addEventListener('show.bs.modal', function(e) {
+    const btn = e.relatedTarget;
+    document.getElementById('delete-zakazka-number').textContent = btn.dataset.number;
+    document.getElementById('delete-zakazka-form').action = '/zakazky/' + btn.dataset.id + '/delete';
+  });
+</script>
+{% endblock %}

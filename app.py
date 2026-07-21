@@ -56,6 +56,27 @@ class Protocol(db.Model):
         return self.fmt_date(self.issue_date)
 
 
+TYPY_ZAKAZKY = ['hluková studie', 'akustická studie', 'měření hluku', 'měření vibrací', 'realizace']
+STAVY_ZAKAZKY = ['založeno', 'čekám na podklady', 'zpracovává se', 'ke kontrole']
+
+
+class Zakazka(db.Model):
+    __tablename__ = 'zakazky'
+
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.String(20), unique=True, nullable=False)
+    typ = db.Column(db.String(50))
+    zodpovedna_osoba = db.Column(db.String(100))
+    stav = db.Column(db.String(50), default='založeno')
+    datum_mereni = db.Column(db.Date)
+    dokonceno = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def datum_mereni_str(self):
+        return self.datum_mereni.strftime('%-d. %-m. %Y') if self.datum_mereni else '—'
+
+
 with app.app_context():
     db.create_all()
 
@@ -318,6 +339,121 @@ def restore():
     db.session.commit()
     flash(f'Obnoveno: {imported} protokolů nahráno, {skipped} přeskočeno (již existují).', 'success')
     return redirect(url_for('index'))
+
+
+@app.route('/zakazky')
+def zakazky():
+    view = request.args.get('view', 'aktivni')
+    historie = (view == 'historie')
+
+    query = Zakazka.query.filter_by(dokonceno=historie)
+
+    typ = request.args.get('typ', '').strip()
+    osoba = request.args.get('osoba', '').strip()
+    stav = request.args.get('stav', '').strip()
+    if typ:
+        query = query.filter(Zakazka.typ == typ)
+    if osoba:
+        query = query.filter(Zakazka.zodpovedna_osoba.ilike(f'%{osoba}%'))
+    if stav:
+        query = query.filter(Zakazka.stav == stav)
+
+    zakazky_list = query.order_by(Zakazka.created_at.desc()).all()
+
+    all_osoby = [r[0] for r in db.session.query(Zakazka.zodpovedna_osoba)
+                 .distinct().order_by(Zakazka.zodpovedna_osoba).all() if r[0]]
+
+    return render_template('zakazky.html',
+        zakazky=zakazky_list,
+        historie=historie,
+        view=view,
+        typy=TYPY_ZAKAZKY,
+        stavy=STAVY_ZAKAZKY,
+        all_osoby=all_osoby,
+        current_typ=typ,
+        current_osoba=osoba,
+        current_stav=stav,
+        aktivni_count=Zakazka.query.filter_by(dokonceno=False).count(),
+        historie_count=Zakazka.query.filter_by(dokonceno=True).count(),
+    )
+
+
+@app.route('/zakazky/new', methods=['POST'])
+def zakazka_new():
+    number = request.form.get('number', '').strip()
+    if not number:
+        flash('Číslo zakázky je povinné.', 'danger')
+        return redirect(url_for('zakazky'))
+    if Zakazka.query.filter_by(number=number).first():
+        flash(f'Zakázka {number} již existuje.', 'warning')
+        return redirect(url_for('zakazky'))
+
+    datum_raw = request.form.get('datum_mereni', '').strip()
+    datum = None
+    if datum_raw:
+        try:
+            from datetime import date as date_cls
+            datum = date_cls.fromisoformat(datum_raw)
+        except ValueError:
+            pass
+
+    z = Zakazka(
+        number=number,
+        typ=request.form.get('typ') or None,
+        zodpovedna_osoba=request.form.get('zodpovedna_osoba', '').strip() or None,
+        stav=request.form.get('stav', 'založeno'),
+        datum_mereni=datum,
+    )
+    db.session.add(z)
+    db.session.commit()
+    flash(f'Zakázka {number} byla přidána.', 'success')
+    return redirect(url_for('zakazky'))
+
+
+@app.route('/zakazky/<int:id>/edit', methods=['POST'])
+def zakazka_edit(id):
+    z = db.get_or_404(Zakazka, id)
+
+    datum_raw = request.form.get('datum_mereni', '').strip()
+    datum = None
+    if datum_raw:
+        try:
+            from datetime import date as date_cls
+            datum = date_cls.fromisoformat(datum_raw)
+        except ValueError:
+            pass
+
+    z.typ = request.form.get('typ') or None
+    z.zodpovedna_osoba = request.form.get('zodpovedna_osoba', '').strip() or None
+    z.stav = request.form.get('stav', z.stav)
+    z.datum_mereni = datum
+    db.session.commit()
+    flash(f'Zakázka {z.number} byla upravena.', 'success')
+    return redirect(url_for('zakazky', view='historie' if z.dokonceno else 'aktivni'))
+
+
+@app.route('/zakazky/<int:id>/done', methods=['POST'])
+def zakazka_done(id):
+    z = db.get_or_404(Zakazka, id)
+    z.dokonceno = not z.dokonceno
+    db.session.commit()
+    if z.dokonceno:
+        flash(f'Zakázka {z.number} byla dokončena.', 'success')
+        return redirect(url_for('zakazky'))
+    else:
+        flash(f'Zakázka {z.number} byla vrácena mezi aktivní.', 'success')
+        return redirect(url_for('zakazky', view='historie'))
+
+
+@app.route('/zakazky/<int:id>/delete', methods=['POST'])
+def zakazka_delete(id):
+    z = db.get_or_404(Zakazka, id)
+    number = z.number
+    was_done = z.dokonceno
+    db.session.delete(z)
+    db.session.commit()
+    flash(f'Zakázka {number} byla smazána.', 'success')
+    return redirect(url_for('zakazky', view='historie' if was_done else 'aktivni'))
 
 
 if __name__ == '__main__':
