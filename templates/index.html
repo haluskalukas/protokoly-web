@@ -120,21 +120,26 @@
         <h5 class="modal-title"><i class="bi bi-cloud-upload me-2"></i>Přidat protokol</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="post" action="/upload" enctype="multipart/form-data">
+      <form method="post" action="/upload" enctype="multipart/form-data" id="upload-form">
         <div class="modal-body">
-          <div class="card card-upload p-4 text-center mb-3">
-            <i class="bi bi-file-earmark-pdf fs-1 text-danger mb-2"></i>
-            <p class="text-muted mb-2">Vyber PDF protokol od Akulab</p>
-            <input type="file" name="pdf" accept=".pdf" class="form-control" required>
+          <div id="drop-zone" class="card card-upload p-4 text-center mb-3" style="cursor:pointer;">
+            <i class="bi bi-file-earmark-pdf fs-1 text-danger mb-2" id="drop-icon"></i>
+            <p class="mb-1 fw-semibold" id="drop-text">Přetáhni PDF sem</p>
+            <p class="text-muted small mb-2">nebo</p>
+            <label class="btn btn-outline-primary btn-sm mb-0">
+              Vyber soubor
+              <input type="file" name="pdf" accept=".pdf" id="file-input" required style="display:none;">
+            </label>
+            <p class="text-muted small mt-2 mb-0" id="file-name"></p>
           </div>
           <p class="text-muted small mb-0">
             <i class="bi bi-info-circle me-1"></i>
-            Aplikace automaticky načte: číslo protokolu, objednatele, data měření a vydání, autorizační set.
+            Automaticky se načte: číslo protokolu, objednatel, data měření a vydání, autorizační set.
           </p>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
-          <button type="submit" class="btn btn-primary">
+          <button type="submit" class="btn btn-primary" id="upload-btn" disabled>
             <i class="bi bi-upload me-1"></i>Nahrát a zpracovat
           </button>
         </div>
@@ -181,6 +186,56 @@
     language: { emptyTable: 'Žádné záznamy' }
   });
   {% endif %}
+
+  // Drag & drop
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const fileName  = document.getElementById('file-name');
+  const dropText  = document.getElementById('drop-text');
+  const uploadBtn = document.getElementById('upload-btn');
+
+  function setFile(file) {
+    if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+      fileName.textContent = 'Soubor musí být PDF.';
+      fileName.className = 'text-danger small mt-2 mb-0';
+      uploadBtn.disabled = true;
+      return;
+    }
+    // Přiřadit soubor do file inputu přes DataTransfer
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+    fileName.textContent = '✓ ' + file.name;
+    fileName.className = 'text-success small mt-2 mb-0';
+    dropText.textContent = 'Soubor připraven';
+    uploadBtn.disabled = false;
+  }
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.style.background = '#d4e6f8';
+    dropZone.style.borderColor = '#1F4E79';
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.background = '';
+    dropZone.style.borderColor = '';
+  });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.background = '';
+    dropZone.style.borderColor = '';
+    setFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+
+  // Reset při zavření modalu
+  document.getElementById('uploadModal').addEventListener('hidden.bs.modal', () => {
+    fileInput.value = '';
+    fileName.textContent = '';
+    dropText.textContent = 'Přetáhni PDF sem';
+    uploadBtn.disabled = true;
+    dropZone.style.background = '';
+  });
 
   // Delete modal – předvyplnění ID a čísla
   document.getElementById('deleteModal').addEventListener('show.bs.modal', function(e) {
