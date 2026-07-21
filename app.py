@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 from datetime import datetime
 
@@ -9,12 +10,20 @@ from flask_sqlalchemy import SQLAlchemy
 
 from extract import extract_from_pdf
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'akulab-dev-key-change-in-prod')
 
-db_url = os.environ.get('DATABASE_URL', 'sqlite:///protokoly.db')
-if db_url.startswith('postgres://'):
+db_url = os.environ.get('DATABASE_URL', '')
+if not db_url:
+    logger.warning('DATABASE_URL není nastavena! Používám SQLite – data se smažou při každém deployi.')
+    db_url = 'sqlite:///protokoly.db'
+elif db_url.startswith('postgres://'):
     db_url = db_url.replace('postgres://', 'postgresql://', 1)
+
+logger.info('Databáze: %s', 'PostgreSQL' if db_url.startswith('postgresql') else 'SQLite')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
