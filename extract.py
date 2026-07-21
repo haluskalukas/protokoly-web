@@ -20,8 +20,8 @@ def extract_from_pdf(stream) -> dict:
 
     result = {}
 
-    # Číslo protokolu: "č. PM-2026-168-a"
-    m = re.search(r'č\.\s+(PM-[\d]+-[\d]+-[\w]+)', text)
+    # Číslo protokolu: "č. PM-2026-093", "č. PM-2026-168-a", "č. PMV-2026-110", "č. PM-2026-162b"
+    m = re.search(r'č\.\s+(PM[A-Z]*-\d+-[\w]+(?:-[\w]+)?)', text)
     result['number'] = m.group(1) if m else None
 
     # Objednatel – jméno na stejném řádku, adresa na dalších řádcích
@@ -45,9 +45,13 @@ def extract_from_pdf(stream) -> dict:
     else:
         result['client'] = None
 
-    # Datum měření
-    m = re.search(r'Datum měření:\s*(\d+\.\s*\d+\.\s*\d+)', text)
-    result['measurement_date'] = _parse_czech_date(m.group(1)) if m else None
+    # Datum měření – zvládá rozsahy ("26. – 27. 5. 2026") i kompaktní ("21.07.2026")
+    m = re.search(r'Datum měření:\s*(.+)', text)
+    if m:
+        dates = re.findall(r'\d+\.\s*\d+\.\s*\d+', m.group(1))
+        result['measurement_date'] = _parse_czech_date(dates[-1]) if dates else None
+    else:
+        result['measurement_date'] = None
 
     # Datum vydání: "V ... dne:  13. 7. 2026"
     m = re.search(r'dne:\s*(\d+\.\s*\d+\.\s*\d+)', text)
