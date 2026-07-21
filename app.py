@@ -70,6 +70,7 @@ class Zakazka(db.Model):
     stav = db.Column(db.String(50), default='založeno')
     datum_mereni = db.Column(db.Date)
     dokonceno = db.Column(db.Boolean, default=False, nullable=False)
+    poznamka = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
@@ -79,6 +80,10 @@ class Zakazka(db.Model):
 
 with app.app_context():
     db.create_all()
+    from sqlalchemy import text
+    with db.engine.connect() as conn:
+        conn.execute(text('ALTER TABLE zakazky ADD COLUMN IF NOT EXISTS poznamka TEXT'))
+        conn.commit()
 
 
 APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
@@ -403,6 +408,7 @@ def zakazka_new():
         zodpovedna_osoba=request.form.get('zodpovedna_osoba', '').strip() or None,
         stav=request.form.get('stav', 'založeno'),
         datum_mereni=datum,
+        poznamka=request.form.get('poznamka', '').strip() or None,
     )
     db.session.add(z)
     db.session.commit()
@@ -427,6 +433,7 @@ def zakazka_edit(id):
     z.zodpovedna_osoba = request.form.get('zodpovedna_osoba', '').strip() or None
     z.stav = request.form.get('stav', z.stav)
     z.datum_mereni = datum
+    z.poznamka = request.form.get('poznamka', '').strip() or None
     db.session.commit()
     flash(f'Zakázka {z.number} byla upravena.', 'success')
     return redirect(url_for('zakazky', view='historie' if z.dokonceno else 'aktivni'))

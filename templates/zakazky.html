@@ -92,6 +92,7 @@
           <th>Zodp. osoba</th>
           {% if not historie %}<th>Stav</th>{% endif %}
           <th>Datum měření</th>
+          <th>Poznámka</th>
           <th class="text-center">Akce</th>
         </tr>
       </thead>
@@ -116,6 +117,7 @@
           <td class="text-nowrap" data-order="{{ z.datum_mereni.isoformat() if z.datum_mereni else '' }}">
             {{ z.datum_mereni_str }}
           </td>
+          <td class="text-muted small">{{ z.poznamka or '' }}</td>
           <td class="text-center text-nowrap">
             <button class="btn btn-outline-secondary btn-sm"
                     data-bs-toggle="modal" data-bs-target="#editModal"
@@ -125,6 +127,7 @@
                     data-osoba="{{ z.zodpovedna_osoba or '' }}"
                     data-stav="{{ z.stav or '' }}"
                     data-datum="{{ z.datum_mereni.isoformat() if z.datum_mereni else '' }}"
+                    data-poznamka="{{ z.poznamka or '' }}"
                     title="Upravit">
               <i class="bi bi-pencil"></i>
             </button>
@@ -190,9 +193,13 @@
               {% endfor %}
             </select>
           </div>
-          <div class="mb-0">
+          <div class="mb-3">
             <label class="form-label fw-semibold">Datum měření</label>
             <input type="date" name="datum_mereni" class="form-control">
+          </div>
+          <div class="mb-0">
+            <label class="form-label fw-semibold">Poznámka</label>
+            <textarea name="poznamka" class="form-control" rows="2" placeholder="Volitelná poznámka…"></textarea>
           </div>
         </div>
         <div class="modal-footer">
@@ -237,9 +244,13 @@
               {% endfor %}
             </select>
           </div>
-          <div class="mb-0">
+          <div class="mb-3">
             <label class="form-label fw-semibold">Datum měření</label>
             <input type="date" name="datum_mereni" id="edit-datum" class="form-control">
+          </div>
+          <div class="mb-0">
+            <label class="form-label fw-semibold">Poznámka</label>
+            <textarea name="poznamka" id="edit-poznamka" class="form-control" rows="2"></textarea>
           </div>
         </div>
         <div class="modal-footer">
@@ -299,7 +310,8 @@
     document.getElementById('edit-typ').value   = btn.dataset.typ;
     document.getElementById('edit-osoba').value = btn.dataset.osoba;
     document.getElementById('edit-stav').value  = btn.dataset.stav;
-    document.getElementById('edit-datum').value = btn.dataset.datum;
+    document.getElementById('edit-datum').value    = btn.dataset.datum;
+    document.getElementById('edit-poznamka').value = btn.dataset.poznamka;
   });
 
   // Delete modal
