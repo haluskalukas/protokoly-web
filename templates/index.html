@@ -1,6 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
 
+{# ── Rychlý drag & drop ── #}
+<div id="page-drop-zone" class="card shadow-sm mb-4 p-3 text-center card-upload" style="transition: all .2s;">
+  <form id="quick-upload-form" method="post" action="/upload" enctype="multipart/form-data" style="display:none;">
+    <input type="file" name="pdf" id="quick-file-input" accept=".pdf">
+  </form>
+  <span id="page-drop-text">
+    <i class="bi bi-file-earmark-pdf text-danger me-2"></i>
+    <span class="fw-semibold">Přetáhni PDF protokol sem</span>
+    <span class="text-muted ms-2 small">— nahraje se automaticky</span>
+  </span>
+  <span id="page-drop-uploading" style="display:none;">
+    <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+    <span class="fw-semibold">Nahrávám…</span>
+  </span>
+</div>
+
 {# ── Horní lišta: statistiky + tlačítka ── #}
 <div class="row g-3 mb-4 align-items-center">
   <div class="col-auto">
@@ -242,6 +258,44 @@
     const btn = e.relatedTarget;
     document.getElementById('delete-number').textContent = btn.dataset.number;
     document.getElementById('delete-form').action = '/delete/' + btn.dataset.id;
+  });
+
+  // Rychlý drag & drop přímo na stránce
+  const pageDropZone    = document.getElementById('page-drop-zone');
+  const quickFileInput  = document.getElementById('quick-file-input');
+  const quickForm       = document.getElementById('quick-upload-form');
+  const pageDropText    = document.getElementById('page-drop-text');
+  const pageDropUploading = document.getElementById('page-drop-uploading');
+
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop',     e => e.preventDefault());
+
+  pageDropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    pageDropZone.style.background = '#d4e6f8';
+    pageDropZone.style.borderColor = '#1F4E79';
+  });
+  pageDropZone.addEventListener('dragleave', e => {
+    if (!pageDropZone.contains(e.relatedTarget)) {
+      pageDropZone.style.background = '';
+      pageDropZone.style.borderColor = '';
+    }
+  });
+  pageDropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    pageDropZone.style.background = '';
+    pageDropZone.style.borderColor = '';
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Přetáhni soubor ve formátu PDF.');
+      return;
+    }
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    quickFileInput.files = dt.files;
+    pageDropText.style.display = 'none';
+    pageDropUploading.style.display = '';
+    quickForm.submit();
   });
 </script>
 {% endblock %}
