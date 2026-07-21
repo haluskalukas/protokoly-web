@@ -20,11 +20,13 @@ def extract_from_pdf(stream) -> dict:
 
     result = {}
 
-    # Číslo protokolu: "č. PM-2026-093", "č. PM-2026-168-a", "č. PMV-2026-110", "č. PM-2026-162b"
-    m = re.search(r'č\.\s+(PM[A-Z]*-\d+-[\w]+(?:-[\w]+)?)', text)
+    # Číslo protokolu – varianty:
+    #   PM-2026-093, PM-2026-168-a, PM-2026-162b, PMV-2026-110 (novější, pomlčky)
+    #   PM-2020/05-5, PMV-2020/05-5 (starší formát s lomítkem za rokem)
+    m = re.search(r'č\.\s+(PM[A-Z]*-\d+[/\-][\w]+(?:-[\w]+)?)', text)
     result['number'] = m.group(1) if m else None
 
-    # Objednatel – jméno na stejném řádku, adresa na dalších řádcích
+    # Objednatel – jméno na stejném řádku, adresa na dalších řádcích (max 3)
     m = re.search(r'Objednatel:\s*(.+)', text)
     if m:
         pos = m.end()
@@ -35,17 +37,18 @@ def extract_from_pdf(stream) -> dict:
             line = line.strip()
             if not line:
                 continue
-            if re.match(r'^(Protokol|Datum|Místo|Měřil|Vyhotovil|www|Akulab|Strana)', line):
+            if re.match(r'^(Protokol|Datum|Místo|Měřil|Vyhotovil|www|Akulab|Strana|Pracoviště|Autorizační|IČO)', line):
                 break
             addr_lines.append(line)
-            if len(addr_lines) == 2:   # max PSČ + město = 2 řádky adresy
+            if len(addr_lines) == 3:
                 break
         parts = [name_line] + addr_lines
         result['client'] = ', '.join(p for p in parts if p)
     else:
         result['client'] = None
 
-    # Datum měření – zvládá rozsahy ("26. – 27. 5. 2026") i kompaktní ("21.07.2026")
+    # Datum měření – zvládá rozsahy ("26. – 27. 5. 2026", "16. 6. 2020 a 18. 6. 2020")
+    # i kompaktní formát ("21.07.2026"); bere poslední datum v řádku
     m = re.search(r'Datum měření:\s*(.+)', text)
     if m:
         dates = re.findall(r'\d+\.\s*\d+\.\s*\d+', m.group(1))
