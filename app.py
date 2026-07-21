@@ -189,5 +189,107 @@ def export():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+@app.route('/backup')
+def backup():
+    protocols = Protocol.query.order_by(Protocol.issue_date.desc()).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Protokoly'
+
+    HDR_FILL = PatternFill('solid', fgColor='1F4E79')
+    HDR_FONT = Font(color='FFFFFF', bold=True)
+    ALT_FILL = PatternFill('solid', fgColor='D9E2F3')
+    CENTER = Alignment(horizontal='center', vertical='center')
+
+    headers = ['Číslo protokolu', 'Objednatel', 'Datum měření', 'Datum vydání', 'Set', 'Rok']
+    widths = [24, 45, 16, 16, 8, 8]
+
+    for col, (h, w) in enumerate(zip(headers, widths), 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.fill = HDR_FILL
+        cell.font = HDR_FONT
+        cell.alignment = CENTER
+        ws.column_dimensions[cell.column_letter].width = w
+
+    for row, p in enumerate(protocols, 2):
+        values = [p.number, p.client or '', p.measurement_date_str,
+                  p.issue_date_str, p.auth_set or '', p.year or '']
+        for col, v in enumerate(values, 1):
+            cell = ws.cell(row=row, column=col, value=v)
+            cell.alignment = Alignment(vertical='center')
+            if row % 2 == 0:
+                cell.fill = ALT_FILL
+
+    ws.freeze_panes = 'A2'
+    ws.auto_filter.ref = f'A1:F{len(protocols) + 1}'
+
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+
+    from datetime import date as date_cls
+    fname = f'zaloha_protokoly_{date_cls.today().isoformat()}.xlsx'
+    return send_file(stream, as_attachment=True, download_name=fname,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/restore', methods=['POST'])
+def restore():
+    file = request.files.get('xlsx')
+    if not file or not file.filename.lower().endswith('.xlsx'):
+        flash('Vyber soubor ve formátu .xlsx (záloha protokolů).', 'danger')
+        return redirect(url_for('index'))
+
+    try:
+        wb = openpyxl.load_workbook(file.stream, data_only=True)
+        ws = wb.active
+    except Exception as e:
+        flash(f'Chyba při čtení souboru: {e}', 'danger')
+        return redirect(url_for('index'))
+
+    imported = 0
+    skipped = 0
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or not row[0]:
+            continue
+        number = str(row[0]).strip()
+        if not number:
+            continue
+
+        if Protocol.query.filter_by(number=number).first():
+            skipped += 1
+            continue
+
+        def parse_date(val):
+            if not val or str(val).strip() in ('', '—'):
+                return None
+            import re
+            parts = re.findall(r'\d+', str(val))
+            if len(parts) == 3:
+                try:
+                    return __import__('datetime').date(int(parts[2]), int(parts[1]), int(parts[0]))
+                except ValueError:
+                    return None
+            return None
+
+        client = str(row[1]).strip() if row[1] else None
+        measurement_date = parse_date(row[2])
+        issue_date = parse_date(row[3])
+        auth_set = str(row[4]).strip() if row[4] else None
+        year = issue_date.year if issue_date else None
+
+        p = Protocol(number=number, client=client,
+                     measurement_date=measurement_date, issue_date=issue_date,
+                     auth_set=auth_set, year=year)
+        db.session.add(p)
+        imported += 1
+
+    db.session.commit()
+    flash(f'Obnoveno: {imported} protokolů nahráno, {skipped} přeskočeno (již existují).', 'success')
+    return redirect(url_for('index'))
+
+
 if __name__ == '__main__':
     app.run(debug=True)

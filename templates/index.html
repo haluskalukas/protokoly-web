@@ -31,14 +31,20 @@
       <span class="fs-4 fw-bold">{{ protocols|length }}</span>
     </div>
   </div>
-  <div class="col ms-auto text-end d-flex gap-2 justify-content-end">
+  <div class="col ms-auto text-end d-flex gap-2 justify-content-end flex-wrap">
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
       <i class="bi bi-cloud-upload me-1"></i>Přidat protokol
     </button>
     <a href="{{ url_for('export', rok=current_rok, set=current_set, search=current_search) }}"
        class="btn btn-success">
-      <i class="bi bi-file-earmark-excel me-1"></i>Export do Excelu
+      <i class="bi bi-file-earmark-excel me-1"></i>Export
     </a>
+    <a href="{{ url_for('backup') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-download me-1"></i>Záloha
+    </a>
+    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#restoreModal">
+      <i class="bi bi-upload me-1"></i>Obnovit
+    </button>
   </div>
 </div>
 
@@ -188,6 +194,33 @@
 </div>
 
 {% endblock %}
+
+{# ── Modal: obnovit ze zálohy ── #}
+<div class="modal fade" id="restoreModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Obnovit ze zálohy</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/restore" enctype="multipart/form-data">
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Vyber soubor zálohy (<code>.xlsx</code>). Protokoly, které již v databázi existují,
+            budou přeskočeny — ostatní se přidají.
+          </p>
+          <input type="file" name="xlsx" accept=".xlsx" class="form-control" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-upload me-1"></i>Nahrát zálohu
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 {% block scripts %}
 <script>
