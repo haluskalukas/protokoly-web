@@ -5,7 +5,7 @@ from datetime import datetime
 
 import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
-from flask import Flask, flash, redirect, render_template, request, send_file, url_for
+from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 
 from extract import extract_from_pdf
@@ -58,6 +58,35 @@ class Protocol(db.Model):
 
 with app.app_context():
     db.create_all()
+
+
+APP_PASSWORD = os.environ.get('APP_PASSWORD', '')
+
+
+@app.before_request
+def require_password():
+    if not APP_PASSWORD:
+        return
+    if request.endpoint in ('login', 'static'):
+        return
+    if not session.get('auth'):
+        return redirect(url_for('login', next=request.path))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        if request.form.get('password') == APP_PASSWORD:
+            session['auth'] = True
+            return redirect(request.args.get('next') or url_for('index'))
+        flash('Nesprávné heslo.', 'danger')
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 
 def _apply_filters(query):
